@@ -5,8 +5,8 @@ module RX_fsm #(
 )(
     input  logic clk, rst_n,
     input  logic rx,
-    output logic [127:0] msg,
-    output logic msg_valid // one-cycle pulse: 16 bytes collected, msg is complete
+    output logic [7:0] rx_byte,
+    output logic rx_ready // one-cycle pulse: 1 byte collected, msg is complete
 );
 
 localparam int TICKS_RATE = CLKS_PER_BIT/16;   // clocks per 1/16 bit: 1736/16 = 108 (rounded down)
@@ -19,9 +19,7 @@ logic [$clog2(TICKS_RATE)-1:0] baud_rate_cntr; // counts TICKS_RATE clock cycles
 logic baud_tick; // pulse every 1/16 bit
 logic [3:0] ticks16_cntr; // 16 ticks per bit (free running)
 logic [2:0] bits_cntr; // data bits sampled: 0..7
-logic [3:0] bytes_to_msg_cntr;// valid bytes collected for the current message: 0..15
 logic [7:0] shift_reg_byte; // current byte
-logic [127:0] shift_reg_msg;  // sliding window of the last 16 bytes
 logic [2:0] start_samples; // samples at ticks 6,7,8 of the start bit
 
 // 2-FF synchronizer for the asynchronous rx input
@@ -56,13 +54,11 @@ always_ff @(posedge clk) begin
         ticks16_cntr <= '0;
         bits_cntr <= '0;
         shift_reg_byte <= '0;
-        shift_reg_msg <= '0;
         start_samples <= 3'b111;
-        bytes_to_msg_cntr <= '0;
-        msg_valid <= 1'b0;
+        rx_ready <= 1'b0;
     end else begin
         current_state <= next_state;
-        msg_valid <= 1'b0;   // default: pulse lasts one clock cycle
+        rx_ready <= 1'b0;   // default: 1 cycle pulse
 
         case (current_state)
             IDLE: begin
@@ -85,20 +81,10 @@ always_ff @(posedge clk) begin
                 end
             end
 
-            STOP_BIT: if (baud_tick) begin
-                ticks16_cntr <= ticks16_cntr + 1'b1;
-            end
-
-            STORE_DATA: begin
-                shift_reg_msg <= {shift_reg_msg[119:0], shift_reg_byte}; // first byte ends at [127:120]
-                if (bytes_to_msg_cntr == 4'd15) begin
-                    bytes_to_msg_cntr <= '0;
-                    msg_valid  <= 1'b1;   // 16th byte enters now, so msg is complete when this is high
-                end else begin
-                    bytes_to_msg_cntr <= bytes_to_msg_cntr + 1'b1;
-                end
-            end
-
+            STOP_BIT: if (baud_tick) ticks16_cntr <= ticks16_cntr + 1'b1;
+            
+            STORE_DATA: rx_ready <= 1'b1; // byte complete
+            
             default: ;
         endcase
     end
@@ -132,6 +118,6 @@ always_comb begin
     endcase
 end
 
-assign msg = shift_reg_msg;
+assign rx_byte = shift_reg_byte;
 
 endmodule

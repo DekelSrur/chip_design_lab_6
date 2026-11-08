@@ -17,6 +17,7 @@ module chip_top#(
     output logic uart_txd,                  //serial line to the PC
     output logic led,                       //LED[0] toggles on every TX data byte
     output logic led15,                     //LED[15] RX/TX mode indicator (1 = RX)
+    output logic [13:4] leds,               //selected-field indicator: [5:4] T0, [8:7] T1, [10:9] T2, [13:12] T3
     output logic [7:0]  an,
     output logic [6:0]  seg,
     output logic dp
@@ -42,9 +43,16 @@ module chip_top#(
     logic [8:0] rows_sent;
     logic [16:0] bytes_sent;
     // RX path
-    logic [127:0] msg;
-    logic msg_valid;
+    logic [7:0] rx_byte;
+    logic rx_ready;
     logic [7:0] row_idx, col_idx, pix_val;
+    logic rx_led;                           //LED number from {Lddd}: 1 = LED16, 0 = LED17
+    logic RGB_wr_en, led_wr_en;             //1-cycle pulses: valid RGB / LED message received
+    // parameter control
+    logic [4:0] btn_db_all;                 //{center, up, down, left, right}
+    logic [23:0] applyRGB;                  //{R, G, B} applied values
+    logic led_sel;                          //1 = LED16, 0 = LED17
+    logic [7:0] dig_sel;                    //{T3, T2, T1, T0} 2 bits each
     // display
     logic [31:0] digits;
     logic [7:0] dps;
@@ -88,19 +96,36 @@ module chip_top#(
 //rx path
     RX_fsm #( .CLKS_PER_BIT(CLKS_PER_BIT)) 
     u_RX_fsm ( .clk(clk), .rst_n(rst_n), .rx(rxd_s), 
-               .msg(msg), .msg_valid(msg_valid)
+               .rx_byte(rx_byte), .rx_ready(rx_ready)
     );
 
     parser u_parser (
-        .clk(clk), .rst_n(rst_n), .msg_valid(msg_valid), .rx_message(msg), .row_index(row_idx),
-        .col_index(col_idx), .pixel_value(pix_val), .correct_format()
+        .clk(clk), .rst_n(rst_n), .rx_ready(rx_ready), .rx_byte(rx_byte),
+        .row_index(row_idx), .col_index(col_idx), .pixel_value(pix_val),
+        .led(rx_led), .RGB_wr_en(RGB_wr_en), .led_wr_en(led_wr_en),
+        .correct_format()
     );
+
+//parameter control
+    // TODO: up/down/left/right are not wired yet (sync + debouncer handle btnc only)
+    assign btn_db_all = {btn_db, 4'b0000};
+
+    param_ctrl u_param_ctrl (
+        .clk(clk), .rst_n(rst_n), .btn_db(btn_db_all),
+        .row_index(row_idx), .col_index(col_idx), .pixel_value(pix_val),
+        .RGB_wr_en(RGB_wr_en), .led_wr_en(led_wr_en), .led(rx_led),
+        .applyRGB(applyRGB),                
+        .led_sel(led_sel),                  
+        .dig_sel(dig_sel)                   
+    );
+
+    assign leds = {dig_sel[7:6], 1'b0, dig_sel[5:4], dig_sel[3:2], 1'b0, dig_sel[1:0]};
 
 //display
     display_mux u_display_mux (
         .rx_mode(rx_mode),
         .byte_val(byte_val), .speed_sel(speed_sel), .count_sel(count_sel), .rows_sent(rows_sent),
-        .row_idx(row_idx), .col_idx(col_idx), .pix_val(pix_val),
+        .row_idx(applyRGB[23:16]), .col_idx(applyRGB[15:8]), .pix_val(applyRGB[7:0]),   //TODO: Lab 6 display_mux (T3 LED, T2 R, T1 G, T0 B)
         .digits(digits), .dps(dps)
     );
 
