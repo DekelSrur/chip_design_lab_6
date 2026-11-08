@@ -3,7 +3,8 @@
 module tx_fsm #(
     parameter DELAY_50MS = 5_000_000,
     parameter DELAY_100MS = 10_000_000,
-    parameter DELAY_200MS = 20_000_000
+    parameter DELAY_200MS = 20_000_000,
+    parameter PWM_W = 10
 )(
     input logic clk,
     input logic rst_n,
@@ -12,6 +13,8 @@ module tx_fsm #(
     input logic [1:0] speed_sel,
     input logic [1:0] count_sel,
     input logic tx_done,
+    input logic color_start,                      // 1-cycle pulse from color_translate
+    input logic [3*PWM_W-1:0] trns_msg,           // {R,G,B} translated values
 
     output logic tx_start,
     output logic [7:0] tx_data,
