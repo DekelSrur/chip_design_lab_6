@@ -1,16 +1,25 @@
 `timescale 1ns/1ps
 
 module param_ctrl 
-    import pkg_param_ctrl::*; 
+    import pkg_lab6::*; 
 (
     input logic clk, rst_n,
     input logic [4:0] btn_db,                                   // {center, up, down, left, right}
     input logic [BYTE-1:0] row_index, col_index, pixel_value,
     input logic RGB_wr_en, led_wr_en, led,                      // led==1 => led16, led==0 => led17
-    output logic [23:0] applyRGB,                               // {8bit R, 8bit B, 8bit G}
+    output logic [23:0] applyRGB,                               // {8bit R, 8bit G, 8bit B}
     output logic led_sel,                              
     output logic [7:0] dig_sel                                   // {[1:0]T3, [1:0]T2, [1:0]T1, [1:0]T0}
 );
+
+    typedef enum logic [1:0] {IDLE, ACTIVATED, PRESSED} state_t;
+    typedef enum logic [4:0] {
+                                NOCMND = 5'b00000,
+                                RIGHT  = 5'b00001,
+                                LEFT   = 5'b00010,
+                                DOWN   = 5'b00100,
+                                UP     = 5'b01000,
+                                CENTER = 5'b10000} buttons_t;
 
     state_t current_state, next_state;
     buttons_t opcode;                                            // {center, up, down, left, right}

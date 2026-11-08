@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
 module chip_top#(
-    parameter CLKS_PER_BIT = 1736,          //100 MHz / 57,600 bps = 1736
+    parameter CLKS_PER_BIT = pkg_lab6::CLKS_PER_BIT,   //from package
     parameter DEBOUNCE_CYCLES = 1_000_000,  //debounce window: 10 ms
     parameter DELAY_50MS = 5_000_000,
     parameter DELAY_100MS = 10_000_000,
