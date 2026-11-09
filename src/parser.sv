@@ -1,48 +1,32 @@
 `timescale 1ns/1ps
 
-module parser #(
-    localparam BYTE = 8
-)(
+module parser import pkg_param_ctrl::*;(
     input logic clk, rst_n, rx_ready,
     input logic [BYTE-1:0] rx_byte,
     output logic [BYTE-1:0] row_index, col_index, pixel_value,
-    output logic led, RGB_wr_en, led_wr_en,
-    output logic correct_format
+    output logic led, RGB_wr_en, led_wr_en
 ); 
 
-    // localparam MSG_STRT = 8'h7B;  // "{"
-    // localparam ROW_LET  = 8'h52;  // "R"
-    // localparam COL_LET  = 8'h43;  // "C"
-    // localparam VAL_LET  = 8'h56;  // "V"
-    // localparam LED_LET  = 8'h4C;  // "L"
-    // localparam COMMA    = 8'h2C;  // ","
-    // localparam MSG_CLS  = 8'h7D;  // "}"
-    localparam ZERO     = 8'h30;  // "0"
-    localparam NINE     = 8'h39;  // "9"
+    typedef enum logic[4:0] {IDLE, MSG_START, RED, R1, R2, R3, R_COMMA,
+                                              GREEN, G1, G2, G3, G_COMMA, 
+                                              BLUE, B1, B2, B3, RGB_MSG_END, LED, L1, L2, L3, LED_MSG_END} msg_state_t;
+    msg_state_t current_state, next_state;
+    logic [2:0][BYTE-1:0] current_RGB, next_RGB;
+    logic is_digit, next_led, current_led;
 
-    typedef enum logic[4:0] {IDLE, MSG_START, ROW, R1, R2, R3,
-                                              COL, C1, C2, C3, 
-                                              VAL, V1, V2, V3, RGB_MSG_END
-                                              LED, L1, L2, L3, LED_MSG_END} msg_state;
-    
-    msg_state current_state, next_state;
-    logic [15:0][BYTE-1:0] msg;
-    logic msg_valid;
-    logic [23:0] current_message;
+    assign is_digit = rx_byte >= "0" && rx_byte <= "9";
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            msg <= '0;
-            msg_valid <= 1'b0;
-        end else begin
-            msg_valid <= rx_ready;                       // check one clock after the shift
-            if (rx_ready) msg <= {msg[14:0], rx_byte};   // newest byte at msg[0]
+            current_state <= IDLE;
+            current_RGB <= '0;
+            current_led <= '0;
         end
-    end
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) current_state <= IDLE;
-        else current_state <= next_state;
+        else if (rx_ready) begin 
+            current_state <= next_state;
+            current_RGB <= next_RGB;
+            current_led <= next_led;
+        end
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -50,77 +34,93 @@ module parser #(
             row_index <= '0;
             col_index <= '0;
             pixel_value <= '0;
-            correct_format <= '0;
-            current_RGB <='0;
+            RGB_wr_en <= '0;
+            led_wr_en <= '0;
+            led <=0;
         end
-        else if (current_state == RGB_MSG_END) begin
-            {row_index, col_index, pixel_value} <= current_message;
-            RGB_wr_en <='1;
-        end
-        else if (current_state == LED_MSG_END) begin
-            led <= (current_led == )
-            wr_en
+        else begin
+            RGB_wr_en <= '0;                                       
+            led_wr_en <= '0;
+
+            if (rx_ready && next_state == RGB_MSG_END) begin       
+                {row_index, col_index, pixel_value} <= next_RGB;
+                RGB_wr_en <= '1;
+            end
+            else if (rx_ready && next_state == LED_MSG_END) begin  
+                led <= next_led;
+                led_wr_en <= '1;
+            end
         end
     end
 
     always_comb begin
         next_state = IDLE;
-        case (current_state)
-            IDLE        :  rx_byte == "{"                    ? next_state = MSG_START;
-            MSG_START   : begin if (rx_byte == "R")            next_state = ROW;
-                              else if (rx_byte == "L")         next_state = LED;
+        next_RGB   = current_RGB;
+        next_led   = current_led;
+
+        if (rx_byte == "{") next_state = MSG_START;
+        else case (current_state)
+            IDLE        :  if(rx_byte == "{")            next_state = MSG_START;
+            MSG_START   : begin if (rx_byte == "R")      next_state = RED;
+                              else if (rx_byte == "L")   next_state = LED;
                           end
-            ROW         : (rx_byte >= "0" && rx_byte <= "9") ? next_state = R1;
-            R1          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = R2;
-            R2          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = R3;
-            R3          :  rx_byte == "C"                    ? next_state = COL;
-            COL         : (rx_byte >= "0" && rx_byte <= "9") ? next_state = C1;
-            C1          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = C2;
-            C2          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = C3;
-            C3          :  rx_byte == "V"                    ? next_state = VAL;
-            VAL         : (rx_byte >= "0" && rx_byte <= "9") ? next_state = V1;
-            V1          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = V2;
-            V2          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = V3;
-            V3          :  rx_byte == "}"                    ? next_state = RGB_MSG_END;
-            RGB_MSG_END :  rx_byte == "{"                    ? next_state = MSG_START;
-            LED         : (rx_byte >= "0" && rx_byte <= "9") ? next_state = L1;
-            L1          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = L2;
-            L2          : (rx_byte >= "0" && rx_byte <= "9") ? next_state = L3;
-            L3          :  rx_byte == "}"                    ? next_state = LED_MSG_END;
-            LED_MSG_END :  rx_byte == "{"                    ? next_state = MSG_START;
+            RED         : begin if(is_digit) begin                  
+                                                         next_state = R1;
+                                                         next_RGB [2] = BYTE'(rx_byte[3:0] * 100);
+                                     end
+                                    end
+            R1          : if(is_digit) begin                  
+                                                         next_state = R2;
+                                                         next_RGB [2] = current_RGB [2] + BYTE'(rx_byte[3:0] * 10);
+                                     end
+            R2          : if(is_digit) begin                  
+                                                         next_state = R3;
+                                                         next_RGB [2] = current_RGB [2] + BYTE'(rx_byte[3:0]);
+                                     end
+            R3      : if (rx_byte == ",")                next_state = R_COMMA;
+            R_COMMA : if (rx_byte == "G")                next_state = GREEN;
+            GREEN       : if(is_digit) begin                  
+                                                         next_state = G1;
+                                                         next_RGB [1] = BYTE'(rx_byte[3:0] * 100);
+                                     end
+            G1          : if(is_digit) begin                  
+                                                         next_state = G2;
+                                                         next_RGB [1] = current_RGB [1] + BYTE'(rx_byte[3:0] * 10);
+                                     end
+            G2          : if(is_digit) begin                  
+                                                         next_state = G3;
+                                                         next_RGB [1] = current_RGB [1] + BYTE'(rx_byte[3:0]);
+                                     end
+            G3      : if (rx_byte == ",")                next_state = G_COMMA;
+            G_COMMA : if (rx_byte == "B")                next_state = BLUE;
+            BLUE        : if(is_digit) begin                  
+                                                         next_state = B1;
+                                                         next_RGB [0] = BYTE'(rx_byte[3:0] * 100);
+                                     end
+            B1          : if(is_digit) begin                  
+                                                         next_state = B2;
+                                                         next_RGB [0] = current_RGB [0] + BYTE'(rx_byte[3:0] * 10);
+                                     end
+            B2          : if(is_digit) begin                  
+                                                         next_state = B3;
+                                                         next_RGB [0] = current_RGB [0] + BYTE'(rx_byte[3:0]);
+                                     end
+            B3          : if(rx_byte == "}")             next_state = RGB_MSG_END;
+            RGB_MSG_END : if(rx_byte == "{")             next_state = MSG_START;
+            LED         : if(rx_byte == "0")             next_state = L1;
+            L1          : if(rx_byte == "1")             next_state = L2;
+            L2          : if(rx_byte == "6") begin                  
+                                                         next_state = L3;
+                                                         next_led = '1;
+                          end
+                          else if (rx_byte == "7") begin
+                                                         next_state = L3;
+                                                         next_led = '0;
+                          end
+            L3          : if(rx_byte == "}")             next_state = LED_MSG_END;
+            LED_MSG_END : if(rx_byte == "{")             next_state = MSG_START;
+            default: ;
         endcase
     end
-/*
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            row_index <= 'b0;
-            col_index <= 'b0;
-            pixel_value <= 'b0;
-        end
-        else if (correct_format && msg_valid) begin          
-            row_index <= BYTE'(msg[13][3:0])*8'd100 + BYTE'(msg[12][3:0])*8'd10 + BYTE'(msg[11][3:0]);         
-            col_index <= BYTE'(msg[8][3:0])*8'd100 + BYTE'(msg[7][3:0])*8'd10 + BYTE'(msg[6][3:0]);  
-            pixel_value <= BYTE'(msg[3][3:0])*8'd100 + BYTE'(msg[2][3:0])*8'd10 + BYTE'(msg[1][3:0]);  
-        end
-    end
-    always_comb begin
-        correct_format = 'b0;
-        correct_format = (msg[15] == MSG_STRT) &&
-                         (msg[14] == ROW_LET) &&
-                         (msg[13] >= ZERO) && (msg[13] <= NINE) && 
-                         (msg[12] >= ZERO) && (msg[12] <= NINE) && 
-                         (msg[11] >= ZERO) && (msg[11] <= NINE) && 
-                         (msg[10] == COMMA) &&
-                         (msg[9]  == COL_LET) &&
-                         (msg[8]  >= ZERO) && (msg[8] <= NINE) && 
-                         (msg[7]  >= ZERO) && (msg[7] <= NINE) && 
-                         (msg[6]  >= ZERO) && (msg[6] <= NINE) && 
-                         (msg[5]  == COMMA) &&
-                         (msg[4]  == VAL_LET) &&
-                         (msg[3]  >= ZERO) && (msg[3] <= NINE) && 
-                         (msg[2]  >= ZERO) && (msg[2] <= NINE) && 
-                         (msg[1]  >= ZERO) && (msg[1] <= NINE) && 
-                         (msg[0]  == MSG_CLS);
-    end
-*/
+
 endmodule

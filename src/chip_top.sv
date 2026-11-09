@@ -102,8 +102,7 @@ module chip_top#(
     parser u_parser (
         .clk(clk), .rst_n(rst_n), .rx_ready(rx_ready), .rx_byte(rx_byte),
         .row_index(row_idx), .col_index(col_idx), .pixel_value(pix_val),
-        .led(rx_led), .RGB_wr_en(RGB_wr_en), .led_wr_en(led_wr_en),
-        .correct_format()
+        .led(rx_led), .RGB_wr_en(RGB_wr_en), .led_wr_en(led_wr_en)
     );
 
 //parameter control

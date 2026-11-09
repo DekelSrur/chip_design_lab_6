@@ -6,7 +6,8 @@ module param_ctrl
     input logic clk, rst_n,
     input logic [4:0] btn_db,                                   // {center, up, down, left, right}
     input logic [BYTE-1:0] row_index, col_index, pixel_value,
-    input logic RGB_wr_en, led_wr_en, led,                      // led==1 => led16, led==0 => led17
+    input logic RGB_wr_en, led_wr_en, 
+    input RGBled_t led,                      // led==1 => led16, led==0 => led17
     output logic [23:0] applyRGB,                               // {8bit R, 8bit B, 8bit G}
     output logic led_sel,                              
     output logic [7:0] dig_sel                                   // {[1:0]T3, [1:0]T2, [1:0]T1, [1:0]T0}
@@ -64,8 +65,8 @@ module param_ctrl
             applyRGB <= 24'd0;
             current_digits <= T0;
             current_RGB <= 24'd0;
-            current_led <=0;
-            led_sel <=0;
+            current_led <= '0;
+            led_sel <= '0;
         end
         else if (RGB_wr_en) begin                                 // update the color to the rx message
             current_RGB <= {row_index, col_index, pixel_value};

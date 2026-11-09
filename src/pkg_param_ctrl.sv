@@ -16,5 +16,6 @@ package pkg_param_ctrl;
                                 LEDS10_9  = 8'b00110000, 
                                 LEDS8_7   = 8'b00001100, 
                                 LEDS5_4   = 8'b00000011} leds_t;
+    typedef enum logic {LED17, LED16} RGBled_t;
 
 endpackage
