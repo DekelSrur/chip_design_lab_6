@@ -10,9 +10,9 @@ module param_ctrl
     
     output logic [23:0] applyRGB,                               // {8bit R, 8bit G, 8bit B}
     output logic led_sel,                              
-    output logic [7:0] dig_sel                                  // {[1:0]T3, [1:0]T2, [1:0]T1, [1:0]T0}
+    output logic [7:0] dig_sel,                                  // {[1:0]T3, [1:0]T2, [1:0]T1, [1:0]T0}
     output logic [23:0] edit_RGB,                               // {R, G, B} being edited (to the display)
-    output logic edit_led,                                      // LED being edited: 1 = LED16, 0 = LED17
+    output logic edit_led                                     // LED being edited: 1 = LED16, 0 = LED17
 );
 
     typedef enum logic [1:0] {IDLE, ACTIVATED, PRESSED} state_t;
