@@ -1,5 +1,12 @@
 `timescale 1ns / 1ps
 
+// tb_chip_top - system-level testbench for Lab 6
+//   Lab 5 regression : TX transfer, RX message parsing, 7-segment display
+//   Lab 6            : RX color -> param_ctrl -> color_translate -> pwm_ctrl -> LED16/LED17,
+//                      button editing (L/R select, U/D +-1, C apply), LED select, color report
+//   RX messages (parser): color "{Rddd,Gddd,Bddd}", LED select "{L016}" / "{L017}"
+//   Not tested yet (spec pending): color report sent on UART by tx_fsm,
+//   RX display of applyRGB.
 module tb_chip_top;
     import pkg_lab6::*;
 
@@ -128,12 +135,10 @@ module tb_chip_top;
         #(T_BIT);
     endtask : send_byte
 
-    // send a 16-character message, first character first
-    task automatic send_msg(input logic [127:0] msg);
-        for (int i = 0; i < 16; i++) begin
-            send_byte(msg[127:120]);            // top character
-            msg = msg << 8;                     // next character moves to the top
-        end
+    // send a message of any length, first character first
+    task automatic send_msg(input string msg);
+        for (int i = 0; i < msg.len(); i++)
+            send_byte(msg[i]);
         #(2 * T_BIT);
     endtask : send_msg
 
@@ -240,12 +245,12 @@ module tb_chip_top;
         else
             $display("Test 3 PASSED: %0d chars, display %h", rx_n, dut.digits);
 
-        // test 4: RX mode, valid message -> display "0C C8 -- FF", color applied, one report
+        // test 4: RX mode, valid message -> display "17 0C C8 FF" (LED | R | G | B), color applied, one report
         sw[15] = 1;
         #200;
         n_before = n_report;
-        send_msg("{R012,C200,V255}");
-        if (led15 !== 1 || dut.digits !== 32'h0CC8_00FF) begin
+        send_msg("{R012,G200,B255}");
+        if (led15 !== 1 || dut.digits !== 32'h170C_C8FF) begin
             $display("Test 4 FAILED: LED15=%b display %h", led15, dut.digits);
             errors++;
         end
@@ -260,9 +265,11 @@ module tb_chip_top;
             $display("Test 4c PASSED: one color report");
 
         // test 5: invalid messages - display and color do not change
-        send_msg("{R300,C010,V020}");           // value > 255
-        send_msg("{X001,C001,V001}");           // wrong letter
-        if (dut.digits !== 32'h0CC8_00FF || dut.apply_rgb !== {8'd12, 8'd200, 8'd255}) begin
+        send_msg("{R300,G010,B020}");           // value > 255
+        send_msg("{X001,G001,B001}");           // wrong letter
+        send_msg("{R001,G002B003}");            // missing comma
+        send_msg("{R0a1,G002,B003}");           // not a digit
+        if (dut.digits !== 32'h170C_C8FF || dut.apply_rgb !== {8'd12, 8'd200, 8'd255}) begin
             $display("Test 5 FAILED: display %h, applyRGB %h", dut.digits, dut.apply_rgb);
             errors++;
         end
@@ -302,9 +309,15 @@ module tb_chip_top;
             $display("Test 8 PASSED: selector moves B-G-R-LED, no wrap");
 
         // test 9: U/D edit the selected field, applied only on CENTER
-        send_msg("{R010,C020,V030}");           // known start color, selector on B
+        send_msg("{R010,G020,B030}");           // known start color, selector on B
         n_before = n_report;
         press_n(B_U, 3);                        // B: 30 -> 33
+        if (dut.digits !== 32'h170A_1421) begin // display follows the edit at once
+            $display("Test 9a FAILED: display %h (exp 170a1421)", dut.digits);
+            errors++;
+        end
+        else
+            $display("Test 9a PASSED: display shows the edit %h", dut.digits);
         if (dut.u_param_ctrl.current_RGB !== {8'd10, 8'd20, 8'd33} ||
             dut.apply_rgb !== {8'd10, 8'd20, 8'd30}) begin
             $display("Test 9 FAILED: edit=%h applied=%h (edit must wait for CENTER)",
@@ -328,7 +341,7 @@ module tb_chip_top;
             $display("Test 9d PASSED: one color report per applied change");
 
         // test 10: no wrap - B stays 255 on UP, R stays 0 on DOWN, no report
-        send_msg("{R000,C128,V255}");
+        send_msg("{R000,G128,B255}");
         n_before = n_report;
         press_btn(B_U);                         // B = 255
         press_n(B_L, 2);                        // select R
@@ -355,6 +368,12 @@ module tb_chip_top;
         // test 12: LED select on T3 - UP + CENTER moves the color to LED16, DOWN + CENTER back
         press_n(B_L, 3);                        // select LED
         press_btn(B_U);
+        if (dut.digits[31:24] !== 8'h16) begin
+            $display("Test 12a FAILED: T3=%h (exp 16)", dut.digits[31:24]);
+            errors++;
+        end
+        else
+            $display("Test 12a PASSED: T3 shows 16 while editing the LED");
         if (leds !== SEL_LED || dut.led_sel !== 1'b0) begin
             $display("Test 12 FAILED: LED changed before CENTER (leds=%h led_sel=%b)", leds, dut.led_sel);
             errors++;
@@ -370,7 +389,7 @@ module tb_chip_top;
 
         // test 13: a new RX color replaces an edit that was not applied
         press_btn(B_D);                         // B: 255 -> 254, not applied
-        send_msg("{R001,C002,V003}");
+        send_msg("{R001,G002,B003}");
         if (dut.u_param_ctrl.current_RGB !== {8'd1, 8'd2, 8'd3}) begin
             $display("Test 13 FAILED: edit=%h", dut.u_param_ctrl.current_RGB);
             errors++;
@@ -378,6 +397,35 @@ module tb_chip_top;
         else
             $display("Test 13 PASSED: RX color overrides the pending edit");
         check_color({8'd1, 8'd2, 8'd3}, "Test 13b");
+
+        // test 14: LED select from RX - "{L016}" -> LED16, "{L017}" -> LED17, bad messages ignored
+        send_msg("{L016}");
+        if (dut.led_sel !== 1'b1) begin
+            $display("Test 14 FAILED: led_sel=%b after {L016}", dut.led_sel);
+            errors++;
+        end
+        else
+            $display("Test 14 PASSED: {L016} selects LED16");
+        check_pwm({8'd1, 8'd2, 8'd3}, 1'b1, "Test 14b");
+        send_msg("{L018}");                     // no such LED
+        send_msg("{L16}");                      // too short
+        if (dut.led_sel !== 1'b1) begin
+            $display("Test 14c FAILED: invalid LED message accepted");
+            errors++;
+        end
+        else
+            $display("Test 14c PASSED: invalid LED messages ignored");
+        send_msg("{L017}");
+        if (dut.led_sel !== 1'b0) begin
+            $display("Test 14d FAILED: led_sel=%b after {L017}", dut.led_sel);
+            errors++;
+        end
+        else
+            $display("Test 14d PASSED: {L017} selects LED17");
+
+        // test 15: a message cut in the middle is dropped, the next "{" restarts the parser
+        send_msg("{R100,G1{R005,G006,B007}");
+        check_color({8'd5, 8'd6, 8'd7}, "Test 15");
 
         if (n_x != 0) begin
             $display("FAILED: X/Z seen on outputs in %0d cycles", n_x);

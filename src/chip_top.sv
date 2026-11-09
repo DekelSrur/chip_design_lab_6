@@ -57,6 +57,8 @@ module chip_top #(
     logic [23:0] apply_rgb;                 //{R, G, B}
     logic led_sel;                          //1 = LED16, 0 = LED17
     logic [7:0] dig_sel;
+    logic [23:0] edit_rgb;                  //{R, G, B} being edited -> display
+    logic edit_led;                         //LED being edited -> display
     logic [2:0][PWM_W-1:0] duty;
     logic color_start;
     logic [3*PWM_W-1:0] trns_msg;
@@ -121,7 +123,8 @@ module chip_top #(
         .clk(clk), .rst_n(rst_n), .btn_db(btn_db),
         .row_index(row_idx), .col_index(col_idx), .pixel_value(pix_val),
         .RGB_wr_en(rgb_wr_en), .led_wr_en(led_wr_en), .led(led_cmd),
-        .applyRGB(apply_rgb), .led_sel(led_sel), .dig_sel(dig_sel)
+        .applyRGB(apply_rgb), .led_sel(led_sel), .dig_sel(dig_sel),
+        .edit_RGB(edit_rgb), .edit_led(edit_led)
     );
 
     color_translate #(.PWM_SLOTS(PWM_SLOTS), .CIE_SCALE(CIE_SCALE)) u_color_translate (
@@ -138,8 +141,9 @@ module chip_top #(
     display_mux u_display_mux (
         .rx_mode(rx_mode),
         .byte_val(byte_val), .speed_sel(speed_sel), .count_sel(count_sel), .rows_sent(rows_sent),
-        .row_idx(row_idx), .col_idx(col_idx), .pix_val(pix_val), .applyRGB(apply_rgb),
-        .digits(digits), .dps(dps), .dash(dash)
+        .edit_rgb(edit_rgb), .edit_led(edit_led),
+        .digits(digits), .dps(dps), .dash(dash),
+    
     );
 
     seg7_ctrl #(.REFRESH_DIV(REFRESH_DIV)) u_seg7_ctrl (

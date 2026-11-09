@@ -7,9 +7,12 @@ module param_ctrl
     input logic [4:0] btn_db,                                   // {center, up, down, left, right}
     input logic [BYTE-1:0] row_index, col_index, pixel_value,
     input logic RGB_wr_en, led_wr_en, led,                      // led==1 => led16, led==0 => led17
+    
     output logic [23:0] applyRGB,                               // {8bit R, 8bit G, 8bit B}
     output logic led_sel,                              
-    output logic [7:0] dig_sel                                   // {[1:0]T3, [1:0]T2, [1:0]T1, [1:0]T0}
+    output logic [7:0] dig_sel                                  // {[1:0]T3, [1:0]T2, [1:0]T1, [1:0]T0}
+    output logic [23:0] edit_RGB,                               // {R, G, B} being edited (to the display)
+    output logic edit_led,                                      // LED being edited: 1 = LED16, 0 = LED17
 );
 
     typedef enum logic [1:0] {IDLE, ACTIVATED, PRESSED} state_t;
@@ -30,6 +33,8 @@ module param_ctrl
     leds_t digit_leds;
 
     assign dig_sel = digit_leds;
+    assign edit_RGB = current_RGB;
+    assign edit_led = current_led;
 
     //mealy fsm - converting the debounced button press into a single command
     always_ff @(posedge clk or negedge rst_n) begin
