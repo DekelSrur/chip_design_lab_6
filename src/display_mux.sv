@@ -1,8 +1,7 @@
 `timescale 1ns/1ps
 
 module display_mux (
-    input logic rx_mode,                 //0 = tx_mode, 1 = rx_mode
-    input logic [23:0] applyRGB,
+    input logic rx_mode,                //0 = tx_mode, 1 = rx_mode
     // TX mode values
     input  logic [7:0]  byte_val,       // T0
     input  logic [1:0]  speed_sel,      // T1
@@ -10,14 +9,13 @@ module display_mux (
     input  logic [8:0]  rows_sent,      // T3 
 
     // RX mode values
-    input  logic [7:0]  row_idx,        // T3
-    input  logic [7:0]  col_idx,        // T2
-    // T1: reserved (generated here, no input)
-    input  logic [7:0]  pix_val,        // T0
+    input  logic [23:0] edit_rgb,       // {R, G, B}: T2 = R, T1 = G, T0 = B
+    input  logic edit_led,              // T3: 1 = "16", 0 = "17"
 
     output logic [31:0] digits,         
     output logic [7:0] dps,           //decimal point per digit
     output logic [7:0] dash
+    
 );
 
     logic [8:0] count_val;
@@ -47,12 +45,10 @@ module display_mux (
             dash = 8'b0000_0000;
         end
         else begin                                              //rx layout
-            digits = { row_idx,                                 //t3
-                       col_idx,                                 //t2
-                       8'h00,                                   //t1: shown as "--"
-                       pix_val };                               //t0
-            dps  = 8'b0000_0000; 
-            dash = 8'b0000_1100;
+            digits = {(edit_led ? 8'h16 : 8'h17),              //t3: LED16 / LED17
+                       edit_rgb };                              //t2 = R, t1 = G, t0 = B (hex)
+            dps  = 8'b0000_0000;
+            dash = 8'b0000_0000;
         end
     end
 
