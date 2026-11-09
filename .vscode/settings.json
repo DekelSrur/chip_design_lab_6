@@ -20,7 +20,7 @@
   },
   "verilog.linting.linter": "verilator",
   "verilog.linting.verilator.runAtFileLocation": true,
-  "verilog.linting.verilator.arguments": "-Wall -Wno-fatal -Wno-DECLFILENAME --timing -y . -y ../src ../src/pkg_param_ctrl.sv",
+  "verilog.linting.verilator.arguments": "-Wall -Wno-fatal -Wno-DECLFILENAME --timing -y . -y ../src ../src/pkg_lab6.sv",
   "terminal.integrated.env.osx": {
     "PATH": "/opt/homebrew/bin:/usr/local/bin:${env:PATH}"
   }

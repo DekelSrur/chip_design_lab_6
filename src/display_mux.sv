@@ -2,6 +2,7 @@
 
 module display_mux (
     input logic rx_mode,                 //0 = tx_mode, 1 = rx_mode
+    input logic [23:0] applyRGB,
     // TX mode values
     input  logic [7:0]  byte_val,       // T0
     input  logic [1:0]  speed_sel,      // T1
@@ -15,7 +16,8 @@ module display_mux (
     input  logic [7:0]  pix_val,        // T0
 
     output logic [31:0] digits,         
-    output logic [7:0] dps           //decimal point per digit
+    output logic [7:0] dps,           //decimal point per digit
+    output logic [7:0] dash
 );
 
     logic [8:0] count_val;
@@ -42,13 +44,15 @@ module display_mux (
                        t1_int, t1_frac,                         //t1
                        byte_val };                              //t0
             dps  = 8'b0000_1000;                                //decimal point t1
+            dash = 8'b0000_0000;
         end
         else begin                                              //rx layout
             digits = { row_idx,                                 //t3
                        col_idx,                                 //t2
                        8'h00,                                   //t1: shown as "--"
                        pix_val };                               //t0
-            dps  = 8'b0000_0000;
+            dps  = 8'b0000_0000; 
+            dash = 8'b0000_1100;
         end
     end
 

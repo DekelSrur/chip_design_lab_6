@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
 module seg7_ctrl#(
-    parameter int REFRESH_DIV = 25_000         //100MHz/25,000 = 4000Hz, 4000Hz/8 = 500Hz
+    parameter int REFRESH_DIV = 25_000          //100MHz/25,000 = 4000Hz, 4000Hz/8 = 500Hz
 )(
     input  logic clk,
     input  logic rst_n,
-    input  logic rx_mode,
+    input  logic [7:0] dash,                    //1 = show "-"
     input  logic [31:0] digits,
     input  logic [7:0] dps,
 
@@ -62,7 +62,7 @@ module seg7_ctrl#(
             4'hE: hex2seg = 7'b0000110;     //E
             default: hex2seg = 7'b0001110;  //F
         endcase
-        if ((idx == 3'b010 || idx == 3'b011) && rx_mode) hex2seg = 7'b0111111;     
+        if (dash[idx]) hex2seg = 7'b0111111;    
     end
 
     //registerd outputs
